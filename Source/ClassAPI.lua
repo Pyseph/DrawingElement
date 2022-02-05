@@ -245,18 +245,22 @@ end
 function Module.IsValidPropertyType(Class, Name, Value)
 	local InputType = typeof(Value)
 	return PerformPropertyAction(Class, Name, function(ValueData)
+		if ValueData == nil then
+			return false
+		end
+
 		for _, Type in next, ValueData.Types do
 			if Type == InputType then
 				return true
 			end
 		end
 
-		return false
+		return false, ValueData.Types[1]
 	end)
 end
 function Module.IsReadOnly(Class, Name)
 	return PerformPropertyAction(Class, Name, function(ValueData)
-		return ValueData.ReadOnly == true
+		return ValueData ~= nil and ValueData.ReadOnly == true
 	end)
 end
 function Module.GetDefaultProperties(Class)

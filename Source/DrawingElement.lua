@@ -82,10 +82,20 @@ local DrawingElement do
 		function GuiObject:__newindex(Key, Value)
 			debug.profilebegin("GuiObject_newindex_" .. tostring(Key))
 
-			if ClassAPI.[Key] then
+			if ClassAPI.IsReadOnly("GuiObject", Key) then
 				error(Error.ReadOnlySet:format(tostring(Key)))
-			elseif Key == "Visible" then
-				assert(type(Value) == "boolean", Error.InvalidValue:format(tostring(Key), "boolean", typeof(Value)))
+			end
+
+			local ValidPropertyValue, ExpectedPropertyType = ClassAPI.IsValidPropertyType("GuiObject", Key, Value)
+			if not ValidPropertyValue then
+				if ExpectedPropertyType == nil then
+					error(Error.UnknownProperty:format(tostring(Key), self.Class, self._FullName))
+				else
+					error(Error.InvalidValue:format(tostring(Key), ExpectedPropertyType, typeof(Value)))
+				end
+			end
+
+			if Key == "Visible" then
 				local Parent = self._Properties.Parent
 				self:_UpdateVisible(Value, Parent ~= UNDEFINED and Parent._DrawingObject.Visible, Parent)
 			elseif Key == "Parent" then
@@ -95,14 +105,11 @@ local DrawingElement do
 				Props.Name = Value
 				self:_UpdateFullName(Props.Parent)
 			elseif Key == "Color" then
-				assert(typeof(Value) == "Color3", Error.InvalidValue:format(tostring(Key), "Color3", typeof(Value)))
 				self._Properties.Color = Value
 				self._DrawingObject.Color = Value
 			elseif Key == "ZIndex" then
 				self._Properties.ZIndex = Value
 				self._DrawingObject.ZIndex = Value
-			else
-				error(Error.UnknownProperty:format(tostring(Key), self.Class, self._FullName))
 			end
 
 			debug.profileend()
