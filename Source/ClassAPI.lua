@@ -236,7 +236,7 @@ PerformPropertyAction = function(Class, Name, Action)
 	if PropertyAPI[Name] ~= nil then
 		return Action(PropertyAPI[Name])
 	elseif ClassAPI.ParentClass ~= nil then
-		return PerformPropertyAction(ClassAPI.ParentClass, Name)
+		return PerformPropertyAction(ClassAPI.ParentClass, Name, Action)
 	else
 		return false
 	end
