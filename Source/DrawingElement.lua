@@ -12,7 +12,7 @@ local Error = {
 	UnknownProperty = "%s is not a valid member of %s \"%s\"",
 }
 
-local Signal = 
+local Signal = Environment.Signal
 
 local DrawingElement do
 	DrawingElement = {

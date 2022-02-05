@@ -96,7 +96,7 @@ setmetatable(Connection, {
 })
 
 -- Signal class
-Signal = {}
+local Signal = {}
 Signal.__index = Signal
 
 function Signal.new()
