@@ -255,7 +255,7 @@ function Module.IsValidPropertyType(Class, Name, Value)
 	end)
 end
 function Module.IsReadOnly(Class, Name)
-	return PerformPropertyAction(Class, Name, function(_, ValueData)
+	return PerformPropertyAction(Class, Name, function(ValueData)
 		return ValueData.ReadOnly == true
 	end)
 end
