@@ -6,7 +6,6 @@ local Error = {
 	DestroyedSet = "The %s property of %s is locked because the object has been destroyed.",
 	ReadOnlySet = "Property %s is read-only and cannot be set.",
 	InvalidSet = "Invalid property %s (%s expected, got %s)",
-	InvalidProperty = "%s is not a valid member of %s \"%s\"",
 	InvalidValue = "Invalid value to property %s (%s expected, got %s)",
 	CircularParentRef = "Attempt to set parent of %s to %s would result in a circular reference",
 	UnknownProperty = "%s is not a valid member of %s \"%s\"",
@@ -14,6 +13,32 @@ local Error = {
 
 local Signal = Environment.Signal
 local ClassAPI = Environment.ClassAPI
+
+local function AssertIndex(self, Key)
+	local Class = self._Properties.Class
+	if ClassAPI.DoesPropertyExist(Class, Key) == false then
+		error(Error.UnknownProperty:format(tostring(Key), Class, self._FullName))
+	end
+end
+local function AssertNewindex(self, Key, Value)
+	if self._Destroyed then
+		error(Error.DestroyedSet:format(tostring(Key), tostring(self._Properties.Name)))
+	end
+
+	local Class = self._Properties.Class
+	if ClassAPI.IsReadOnly(Class, Key) then
+		error(Error.ReadOnlySet:format(tostring(Key)))
+	end
+
+	local ValidPropertyValue, ExpectedPropertyType = ClassAPI.IsValidPropertyType(Class, Key, Value)
+	if ValidPropertyValue == false then
+		if ExpectedPropertyType == nil then
+			error(Error.UnknownProperty:format(tostring(Key), Class, self._FullName))
+		else
+			error(Error.InvalidValue:format(tostring(Key), ExpectedPropertyType, typeof(Value)))
+		end
+	end
+end
 
 local DrawingElement do
 	DrawingElement = {
@@ -80,20 +105,9 @@ local DrawingElement do
 		end
 
 		function GuiObject:__newindex(Key, Value)
-			debug.profilebegin("GuiObject_newindex_" .. tostring(Key))
+			debug.profilebegin("GuiObject.__newindex " .. tostring(Key))
 
-			if ClassAPI.IsReadOnly("GuiObject", Key) then
-				error(Error.ReadOnlySet:format(tostring(Key)))
-			end
-
-			local ValidPropertyValue, ExpectedPropertyType = ClassAPI.IsValidPropertyType("GuiObject", Key, Value)
-			if ValidPropertyValue == false then
-				if ExpectedPropertyType == nil then
-					error(Error.UnknownProperty:format(tostring(Key), self.Class, self._FullName))
-				else
-					error(Error.InvalidValue:format(tostring(Key), ExpectedPropertyType, typeof(Value)))
-				end
-			end
+			AssertNewindex(self, Key, Value)
 
 			if Key == "Visible" then
 				local Parent = self._Properties.Parent
@@ -306,14 +320,7 @@ local DrawingElement do
 	local Square do
 		Square = {}
 
-		local ClassPropertiesDraft = {
-			Thickness = 1,
-			Filled = false,
-			Class = "Square"
-		}
-		local ReadOnlyProps = {
-			Class = true,
-		}
+		local ClassPropertiesDraft = ClassAPI.GetDefaultProperties("Square")
 		DrawingElement.ClassProperties.Square = ClassPropertiesDraft
 
 		function Square.new()
@@ -346,10 +353,11 @@ local DrawingElement do
 
 		function Square:__index(Key)
 			debug.profilebegin("Square.__index " .. Key)
+
+			AssertIndex(self, Key)
+
 			local FoundProp = self._Properties[Key] or Square[Key] or self._ParentClass[Key]
-			if FoundProp == nil then
-				error(Error.InvalidProperty:format(tostring(Key), self.Class, self.Name))
-			elseif FoundProp == UNDEFINED then
+			if FoundProp == UNDEFINED then
 				debug.profileend()
 				return nil
 			end
@@ -360,19 +368,14 @@ local DrawingElement do
 		function Square:__newindex(Key, Value)
 			debug.profilebegin("Square.__newindex " .. Key)
 
-			if self._Destroyed then
-				error(Error.DestroyedSet:format(tostring(Key), tostring(self._Properties.Name)))
-			elseif ReadOnlyProps[Key] then
-				error(Error.ReadOnlySet:format(tostring(Key)))
-			elseif Key == "Position" then
-				assert(typeof(Value) == "Vector2", Error.InvalidSet:format(tostring(Key), "Vector2", tostring(Value)))
+			AssertNewindex(self, Key, Value)
+
+			if Key == "Position" then
 				self:_UpdatePosition(nil, Value)
 			elseif Key == "Size" then
-				assert(typeof(Value) == "Vector2", Error.InvalidSet:format(tostring(Key), "Vector2", tostring(Value)))
 				self._Properties.Size = Value
 				self._DrawingObject.Size = Value
 			elseif Key == "Filled" then
-				assert(type(Value) == "boolean", Error.InvalidSet:format(tostring(Key), "Vector2", tostring(Value)))
 				self._Properties.Filled = Value
 				self._DrawingObject.Filled = Value
 			else
@@ -397,21 +400,7 @@ local DrawingElement do
 	local Line do
 		Line = {}
 
-		local ClassPropertiesDraft = {
-			Class = "Line",
-			Thickness = 1,
-			From = Vector2.new(0, 0),
-			To = Vector2.new(0, 0),
-			AbsoluteFrom = Vector2.new(0, 0),
-			AbsoluteTo = Vector2.new(0, 0),
-			Position = Vector2.new(0, 0),
-		}
-		local ReadOnlyProps = {
-			Position = true,
-			AbsoluteFrom = true,
-			AbsoluteTo = true,
-			Class = true,
-		}
+		local ClassPropertiesDraft = ClassAPI.GetDefaultProperties("Line")
 		DrawingElement.ClassProperties.Line = ClassPropertiesDraft
 
 		function Line.new()
@@ -444,10 +433,11 @@ local DrawingElement do
 
 		function Line:__index(Key)
 			debug.profilebegin("Line.__index " .. tostring(Key))
+
+			AssertIndex(self, Key)
+
 			local FoundProp = self._Properties[Key] or Line[Key] or self._ParentClass[Key]
-			if FoundProp == nil then
-				error(Error.InvalidProperty:format(tostring(Key), self.Class, self.Name))
-			elseif FoundProp == UNDEFINED then
+			if FoundProp == UNDEFINED then
 				return nil, debug.profileend()
 			end
 
@@ -456,15 +446,11 @@ local DrawingElement do
 		function Line:__newindex(Key, Value)
 			debug.profilebegin("Line.__newindex " .. tostring(Key))
 
-			if self._Destroyed then
-				error(Error.DestroyedSet:format(tostring(Key), tostring(self._Properties.Name)))
-			elseif ReadOnlyProps[Key] then
-				error(Error.ReadOnlySet:format(tostring(Key)))
-			elseif Key == "From" then
-				assert(typeof(Value) == "Vector2", Error.InvalidSet:format(tostring(Key), "Vector2", tostring(Value)))
+			AssertNewindex(self, Key, Value)
+
+			if Key == "From" then
 				self:_UpdatePosition(nil, Value)
 			elseif Key == "To" then
-				assert(typeof(Value) == "Vector2", Error.InvalidSet:format(tostring(Key), "Vector2", tostring(Value)))
 				self:_UpdatePosition(nil, nil, Value)
 			else
 				GuiObject.__newindex(self, Key, Value)
@@ -489,21 +475,7 @@ local DrawingElement do
 	local Text do
 		Text = {}
 
-		local ClassPropertiesDraft = {
-			Text = "",
-			TextSize = 16, -- Equivalent to `Drawing.new("Text").Size`
-			Center = false,
-			Outline = false,
-			OutlineColor = Color3.new(0, 0, 0),
-			TextBounds = Vector2.new(0, 16),
-			Font = Drawing.Fonts.UI,
-			Size = Vector2.new(),
-			Class = "Text"
-		}
-		local ReadOnlyProps = {
-			TextBounds = true,
-			Class = true,
-		}
+		local ClassPropertiesDraft = ClassAPI.GetDefaultProperties("Text")
 		DrawingElement.ClassProperties.Text = ClassPropertiesDraft
 
 		function Text.new()
@@ -536,10 +508,11 @@ local DrawingElement do
 
 		function Text:__index(Key)
 			debug.profilebegin("Text.__index " .. tostring(Key))
+
+			AssertIndex(self, Key)
+
 			local FoundProp = self._Properties[Key] or Text[Key] or self._ParentClass[Key]
-			if FoundProp == nil then
-				error(Error.InvalidProperty:format(tostring(Key), self.Class, self.Name))
-			elseif FoundProp == UNDEFINED then
+			if FoundProp == UNDEFINED then
 				return nil, debug.profileend()
 			end
 
@@ -548,15 +521,11 @@ local DrawingElement do
 		function Text:__newindex(Key, Value)
 			debug.profilebegin("Text.__newindex " .. tostring(Key))
 
-			if self._Destroyed then
-				error(Error.DestroyedSet:format(tostring(Key), tostring(self._Properties.Name)))
-			elseif ReadOnlyProps[Key] then
-				error(Error.ReadOnlySet:format(tostring(Key)))
-			elseif Key == "Position" then
-				assert(typeof(Value) == "Vector2", Error.InvalidSet:format(tostring(Key), "Vector2", tostring(Value)))
+			AssertNewindex(self, Key, Value)
+
+			if Key == "Position" then
 				self:_UpdatePosition(nil, Value)
 			elseif Key == "Size" then
-				assert(typeof(Value) == "Vector2", Error.InvalidSet:format(tostring(Key), "Vector2", tostring(Value)))
 				self._Properties.Size = Value
 			elseif Key == "Text" then
 				self._Properties.Text = Value
@@ -584,23 +553,7 @@ local DrawingElement do
 	local Triangle do
 		Triangle = {}
 
-		local ClassPropertiesDraft = {
-			Thickness = 1,
-			PointA = Vector2.new(),
-			PointB = Vector2.new(),
-			PointC = Vector2.new(),
-			AbsolutePointA = Vector2.new(),
-			AbsolutePointB = Vector2.new(),
-			AbsolutePointC = Vector2.new(),
-			Filled = false,
-			Class = "Triangle",
-		}
-		local ReadOnlyProps = {
-			AbsolutePointA = true,
-			AbsolutePointB = true,
-			AbsolutePointC = true,
-			Class = true,
-		}
+		local ClassPropertiesDraft = ClassAPI.GetDefaultProperties("Triangle")
 		DrawingElement.ClassProperties.Triangle = ClassPropertiesDraft
 
 		function Triangle.new()
@@ -633,10 +586,11 @@ local DrawingElement do
 
 		function Triangle:__index(Key)
 			debug.profilebegin("Triangle_index_" .. tostring(Key))
+
+			AssertIndex(self, Key)
+
 			local FoundProp = self._Properties[Key] or Triangle[Key] or self._ParentClass[Key]
-			if FoundProp == nil then
-				error(Error.InvalidProperty:format(tostring(Key), self.Class, self.Name))
-			elseif FoundProp == UNDEFINED then
+			if FoundProp == UNDEFINED then
 				return nil, debug.profileend()
 			end
 
@@ -645,22 +599,15 @@ local DrawingElement do
 		function Triangle:__newindex(Key, Value)
 			debug.profilebegin("Triangle.__newindex " .. tostring(Key))
 
-			if self._Destroyed then
-				error(Error.DestroyedSet:format(tostring(Key), tostring(self._Properties.Name)))
-			elseif ReadOnlyProps[Key] then
-				error(Error.ReadOnlySet:format(tostring(Key)))
-			elseif Key == "PointA" then
-				assert(typeof(Value) == "Vector2", Error.InvalidSet:format(tostring(Key), "Vector2", tostring(Value)))
+			AssertNewindex(self, Key, Value)
+
+			if Key == "PointA" then
 				self:_UpdatePosition(nil, Value)
 			elseif Key == "PointB" or Key == "Position" then
-				assert(typeof(Value) == "Vector2", Error.InvalidSet:format(tostring(Key), "Vector2", tostring(Value)))
 				self:_UpdatePosition(nil, nil, Value)
 			elseif Key == "PointC" then
-				assert(typeof(Value) == "Vector2", Error.InvalidSet:format(tostring(Key), "Vector2", tostring(Value)))
 				self:_UpdatePosition(nil, nil, nil, Value)
 			elseif ClassPropertiesDraft[Key] then
-				local ExpectedType = typeof(ClassPropertiesDraft[Key])
-				assert(typeof(Value) == ExpectedType, Error.InvalidValue:format(tostring(Key), ExpectedType, typeof(Value)))
 				self._Properties[Key] = Value
 				self._DrawingObject[Key] = Value
 			else

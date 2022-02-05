@@ -242,22 +242,20 @@ PerformPropertyAction = function(Class, Name, Action)
 	end
 end
 
+function Module.DoesPropertyExist(Class, Name)
+	return PerformPropertyAction(Class, Name, function()
+		return true
+	end)
+end
 function Module.IsValidPropertyType(Class, Name, Value)
 	local InputType = typeof(Value)
 	return PerformPropertyAction(Class, Name, function(ValueData)
-		if ValueData == nil then
-			print("Unable to find ValueData for", Name)
-			return false
-		end
-
 		for _, Type in next, ValueData.Types do
 			if Type == InputType then
 				return true
 			end
 		end
 
-		print("Not valid property for", Name)
-		print("Valid property is:", ValueData.Types[1])
 		return false, ValueData.Types[1]
 	end)
 end
