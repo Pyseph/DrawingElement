@@ -30,11 +30,11 @@ local API = {
 				Types = {"GuiObject"},
 			},
 			AnchorPoint = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 			},
 			Position = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 			},
 			Name = {
@@ -42,7 +42,7 @@ local API = {
 				Types = {"string"},
 			},
 			AbsolutePosition = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 				ReadOnly = true,
 			},
@@ -95,25 +95,25 @@ local API = {
 				Types = {"number"},
 			},
 			From = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 			},
 			To = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 			},
 			AbsoluteFrom = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 				ReadOnly = true,
 			},
 			AbsoluteTo = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 				ReadOnly = true,
 			},
 			Position = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 				ReadOnly = true,
 			},
@@ -165,7 +165,7 @@ local API = {
 				Types = {"0"},
 			},
 			Size = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 			},
 		},
@@ -187,29 +187,29 @@ local API = {
 				ReadOnly = true,
 			},
 			PointA = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 			},
 			PointB = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 			},
 			PointC = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 			},
 			AbsolutePointA = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 				ReadOnly = true,
 			},
 			AbsolutePointB = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 				ReadOnly = true,
 			},
 			AbsolutePointC = {
-				Value = Vector2.new(0, 0),
+				Value = Vector2.zero,
 				Types = {"Vector2"},
 				ReadOnly = true,
 			},
@@ -228,7 +228,16 @@ local API = {
 }
 
 
-local function IsExpectedValue()
+local function IsExpectedValue(ValueData, InputValue)
+	local InputType = typeof(InputValue)
+	for _, Type in next, ValueData.Types do
+		if Type == InputType then
+			return true
+		end
+	end
+
+	return false
+end
 function Module.IsValidType(Class, Type, Name, Value)
 	local ClassAPI = API[Class]
 	local TypeAPI = ClassAPI[Type]
@@ -236,13 +245,20 @@ function Module.IsValidType(Class, Type, Name, Value)
 	if TypeAPI[Name] ~= nil then
 		return IsExpectedValue(TypeAPI[Name], Value)
 	elseif ClassAPI.ParentClass ~= nil then
-		return ClassProperties.IsValidType(ClassAPI.ParentClass, Type, Name, Value)
+		return Module.IsValidType(ClassAPI.ParentClass, Type, Name, Value)
 	else
 		return false
 	end
 end
-function Module.GetDefaultProperties(Class, Type, Name)
-	return ClassAPI[Name][Type]
+function Module.GetDefaultProperties(Class)
+	local PropertiesAPI = API[Class].Properties
+	local DefaultProperties = {}
+
+	for Name, PropertyData in next, PropertiesAPI do
+		DefaultProperties[Name] = PropertyData.Value
+	end
+
+	return DefaultProperties
 end
 
 return Module, UNDEFINED
