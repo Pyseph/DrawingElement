@@ -246,6 +246,7 @@ function Module.IsValidPropertyType(Class, Name, Value)
 	local InputType = typeof(Value)
 	return PerformPropertyAction(Class, Name, function(ValueData)
 		if ValueData == nil then
+			print("Unable to find ValueData for", Name)
 			return false
 		end
 
@@ -255,6 +256,8 @@ function Module.IsValidPropertyType(Class, Name, Value)
 			end
 		end
 
+		print("Not valid property for", Name)
+		print("Valid property is:", ValueData.Types[1])
 		return false, ValueData.Types[1]
 	end)
 end

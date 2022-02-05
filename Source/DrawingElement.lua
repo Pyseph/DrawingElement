@@ -87,7 +87,7 @@ local DrawingElement do
 			end
 
 			local ValidPropertyValue, ExpectedPropertyType = ClassAPI.IsValidPropertyType("GuiObject", Key, Value)
-			if not ValidPropertyValue then
+			if ValidPropertyValue == false then
 				if ExpectedPropertyType == nil then
 					error(Error.UnknownProperty:format(tostring(Key), self.Class, self._FullName))
 				else
