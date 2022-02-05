@@ -228,27 +228,36 @@ local API = {
 }
 
 
-local function IsExpectedValue(ValueData, InputValue)
-	local InputType = typeof(InputValue)
-	for _, Type in next, ValueData.Types do
-		if Type == InputType then
-			return true
-		end
-	end
-
-	return false
-end
-function Module.IsValidType(Class, Type, Name, Value)
+local PerformPropertyAction
+PerformPropertyAction = function(Class, Name, Action)
 	local ClassAPI = API[Class]
-	local TypeAPI = ClassAPI[Type]
+	local PropertyAPI = ClassAPI.Properties
 
-	if TypeAPI[Name] ~= nil then
-		return IsExpectedValue(TypeAPI[Name], Value)
+	if PropertyAPI[Name] ~= nil then
+		return Action(PropertyAPI[Name])
 	elseif ClassAPI.ParentClass ~= nil then
-		return Module.IsValidType(ClassAPI.ParentClass, Type, Name, Value)
+		return PerformPropertyAction(ClassAPI.ParentClass, Name)
 	else
 		return false
 	end
+end
+
+function Module.IsValidPropertyType(Class, Name, Value)
+	local InputType = typeof(Value)
+	PerformPropertyAction(Class, Name, function(ValueData)
+		for _, Type in next, ValueData.Types do
+			if Type == InputType then
+				return true
+			end
+		end
+
+		return false
+	end)
+end
+function Module.IsReadOnly(Class, Name)
+	PerformPropertyAction(Class, Name, function(_, ValueData)
+		return ValueData.ReadOnly == true
+	end)
 end
 function Module.GetDefaultProperties(Class)
 	local PropertiesAPI = API[Class].Properties

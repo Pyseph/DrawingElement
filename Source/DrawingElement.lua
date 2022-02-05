@@ -63,22 +63,7 @@ local DrawingElement do
 		GuiObject = {}
 		GuiObject.__index = GuiObject
 
-		local ClassPropertiesDraft = {
-			Visible = false,
-			ZIndex = 1,
-			Transparency = 1,
-			Color = Color3.new(0, 0, 0),
-			Parent = UNDEFINED,
-			AnchorPoint = Vector2.new(0, 0),
-			Position = Vector2.new(0, 0),
-			Name = "GuiObject",
-			AbsolutePosition = Vector2.new(0, 0),
-			Class = "GuiObject"
-		}
-		local ReadOnlyProps = {
-			AbsolutePosition = true,
-			Class = true,
-		}
+		local ClassPropertiesDraft = ClassAPI.GetDefaultProperties("GuiObject")
 		DrawingElement.ClassProperties.GuiObject = ClassPropertiesDraft
 
 		function GuiObject.new()
@@ -97,7 +82,7 @@ local DrawingElement do
 		function GuiObject:__newindex(Key, Value)
 			debug.profilebegin("GuiObject_newindex_" .. tostring(Key))
 
-			if ReadOnlyProps[Key] then
+			if ClassAPI.[Key] then
 				error(Error.ReadOnlySet:format(tostring(Key)))
 			elseif Key == "Visible" then
 				assert(type(Value) == "boolean", Error.InvalidValue:format(tostring(Key), "boolean", typeof(Value)))
