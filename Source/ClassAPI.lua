@@ -244,7 +244,7 @@ end
 
 function Module.IsValidPropertyType(Class, Name, Value)
 	local InputType = typeof(Value)
-	PerformPropertyAction(Class, Name, function(ValueData)
+	return PerformPropertyAction(Class, Name, function(ValueData)
 		for _, Type in next, ValueData.Types do
 			if Type == InputType then
 				return true
@@ -255,7 +255,7 @@ function Module.IsValidPropertyType(Class, Name, Value)
 	end)
 end
 function Module.IsReadOnly(Class, Name)
-	PerformPropertyAction(Class, Name, function(_, ValueData)
+	return PerformPropertyAction(Class, Name, function(_, ValueData)
 		return ValueData.ReadOnly == true
 	end)
 end
