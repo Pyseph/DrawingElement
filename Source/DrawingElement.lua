@@ -13,6 +13,7 @@ local Error = {
 }
 
 local Signal = Environment.Signal
+local ClassAPI = Environment.ClassAPI
 
 local DrawingElement do
 	DrawingElement = {
@@ -318,7 +319,9 @@ local DrawingElement do
 			Filled = false,
 			Class = "Square"
 		}
-		local ReadOnlyProps = {}
+		local ReadOnlyProps = {
+			Class = true,
+		}
 		DrawingElement.ClassProperties.Square = ClassPropertiesDraft
 
 		function Square.new()
@@ -400,21 +403,22 @@ local DrawingElement do
 
 	-- https://x.synapse.to/docs/reference/drawing_lib.html#line
 	local Line do
-		Line = {
-			Class = "Line"
-		}
+		Line = {}
 
 		local ClassPropertiesDraft = {
+			Class = "Line",
 			Thickness = 1,
 			From = Vector2.new(0, 0),
 			To = Vector2.new(0, 0),
 			AbsoluteFrom = Vector2.new(0, 0),
-			AbsoluteTo = Vector2.new(0, 0)
+			AbsoluteTo = Vector2.new(0, 0),
+			Position = Vector2.new(0, 0),
 		}
 		local ReadOnlyProps = {
 			Position = true,
 			AbsoluteFrom = true,
-			AbsoluteTo = true
+			AbsoluteTo = true,
+			Class = true,
 		}
 		DrawingElement.ClassProperties.Line = ClassPropertiesDraft
 
@@ -506,6 +510,7 @@ local DrawingElement do
 		}
 		local ReadOnlyProps = {
 			TextBounds = true,
+			Class = true,
 		}
 		DrawingElement.ClassProperties.Text = ClassPropertiesDraft
 
@@ -585,9 +590,7 @@ local DrawingElement do
 
 	-- https://x.synapse.to/docs/reference/drawing_lib.html#line
 	local Triangle do
-		Triangle = {
-			Class = "Triangle"
-		}
+		Triangle = {}
 
 		local ClassPropertiesDraft = {
 			Thickness = 1,
@@ -598,11 +601,13 @@ local DrawingElement do
 			AbsolutePointB = Vector2.new(),
 			AbsolutePointC = Vector2.new(),
 			Filled = false,
+			Class = "Triangle",
 		}
 		local ReadOnlyProps = {
-			AbsolutePointA = Vector2.new(),
-			AbsolutePointB = Vector2.new(),
-			AbsolutePointC = Vector2.new(),
+			AbsolutePointA = true,
+			AbsolutePointB = true,
+			AbsolutePointC = true,
+			Class = true,
 		}
 		DrawingElement.ClassProperties.Triangle = ClassPropertiesDraft
 
@@ -696,9 +701,6 @@ local DrawingElement do
 	DrawingElement.ClassProperties = setmetatable(DrawingElement.ClassProperties, {
 		__index = DrawingElement.ClassProperties.GuiObject
 	})
-	GlobalEnv.DrawingElement = DrawingElement
 end
 
-local ElementTweenService do
-
-end
+return DrawingElement

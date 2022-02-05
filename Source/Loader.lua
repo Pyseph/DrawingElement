@@ -1,5 +1,5 @@
 if getgenv()._DrawingEnvironment ~= nil then
-	warn("DrawingExtension API is already running!")
+	warn("An instance of DrawingElement API is already running!")
 	--return
 end
 
@@ -8,10 +8,9 @@ local function RequireScript(ScriptName)
 	return loadstring(game:HttpGet(string.format(ScriptPath, ScriptName)))
 end
 
-local Environment = {
-	Signal = RequireScript("Signal")
+getgenv()._DrawingEnvironment = {
+	Signal = RequireScript("Signal"),
+	ClassAPI = RequireScript("ClassAPI"),
 }
 
-getgenv()._DrawingEnvironment = Environment
-
-RequireScript("DrawingElement")
+getgenv().DrawingElement = RequireScript("DrawingElement")
