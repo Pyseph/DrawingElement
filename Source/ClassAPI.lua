@@ -228,8 +228,7 @@ local API = {
 }
 
 
-local PerformPropertyAction
-PerformPropertyAction = function(Class, Name, Action)
+local PerformPropertyAction; PerformPropertyAction = function(Class, Name, Action)
 	local ClassAPI = API[Class]
 	local PropertyAPI = ClassAPI.Properties
 
@@ -247,6 +246,7 @@ function Module.DoesPropertyExist(Class, Name)
 		return true
 	end)
 end
+
 function Module.IsValidPropertyType(Class, Name, Value)
 	local InputType = typeof(Value)
 	return PerformPropertyAction(Class, Name, function(ValueData)
@@ -259,11 +259,13 @@ function Module.IsValidPropertyType(Class, Name, Value)
 		return false, ValueData.Types[1]
 	end)
 end
+
 function Module.IsReadOnly(Class, Name)
 	return PerformPropertyAction(Class, Name, function(ValueData)
 		return ValueData ~= nil and ValueData.ReadOnly == true
 	end)
 end
+
 function Module.GetDefaultProperties(Class)
 	local PropertiesAPI = API[Class].Properties
 	local DefaultProperties = {}

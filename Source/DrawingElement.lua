@@ -40,11 +40,28 @@ local function AssertNewindex(self, Key, Value)
 	end
 end
 
+local function DeepCopy(Value)
+	if type(Value) ~= "table" then
+		return Value
+	end
+
+	local Copy = {}
+	for i, v in next, Value do
+		Copy[DeepCopy(i)] = DeepCopy(v)
+	end
+
+	return Copy
+end
+
+local ElementGui = {}
+ElementGui.Name = "ElementGui"
+
 local DrawingElement do
 	DrawingElement = {
 		ClassProperties = {}
 	}
 
+	-- Flattens nested tables into flat ones. Used for :GetDescendants()
 	local function RecursiveFlatten(Flattened, Count, Children)
 		for Child in next, Children do
 			Count += 1
@@ -56,32 +73,17 @@ local DrawingElement do
 		return Flattened
 	end
 
-	local function DeepCopy(Value)
-		if type(Value) ~= "table" then
-			return Value
-		end
-
-		local Copy = {}
-		for i, v in next, Value do
-			Copy[DeepCopy(i)] = DeepCopy(v)
-		end
-
-		return Copy
-	end
-
 	local ElementClasses = {}
 	local function IsElementObject(Object)
 		return type(Object) == "table" and ElementClasses[Object.Class] == getrawmetatable(Object)
 	end
 
+	-- This is used to assign unique IDs to each object.
 	local Counter = 0
 	local function IncrementCounter()
 		Counter += 1
 		return Counter
 	end
-
-	local ElementGui = {}
-	ElementGui.Name = "ElementGui"
 
 	-- GuiObject is an abstract class inherited by all DrawingElement objects.
 	local GuiObject do
@@ -130,7 +132,7 @@ local DrawingElement do
 		end
 		function GuiObject:_SetParent(Key, Value)
 			assert(Value == nil or IsElementObject(Value), Error.InvalidSet:format(tostring(Key), "ElementObject", tostring(Value)))
-			debug.profilebegin("_SetParent_" .. self.Class)
+			debug.profilebegin("__namecall._SetParent " .. self.Class)
 
 			local DidUpdate = false
 			if Value ~= nil then
@@ -175,7 +177,7 @@ local DrawingElement do
 			debug.profileend()
 		end
 		function GuiObject:_UpdateVisible(Value, ParentVisible, Parent)
-			debug.profilebegin("namecall__UpdateVisible")
+			debug.profilebegin("__namecall._UpdateVisible")
 			self._Properties.Visible = Value
 
 			local VisibleValue = Value
@@ -190,7 +192,7 @@ local DrawingElement do
 			debug.profileend()
 		end
 		function GuiObject:_UpdateFullName(ObjectParent)
-			debug.profilebegin("namecall__UpdateFullName")
+			debug.profilebegin("__namecall._UpdateFullName")
 			local FullName = self._Destroyed and "" or "ElementGui."
 
 			debug.profilebegin("Grab parents")
@@ -216,7 +218,7 @@ local DrawingElement do
 			debug.profileend()
 		end
 		function GuiObject:_UpdatePosition(ParentPosition, RootPositionProp, PositionProps)
-			debug.profilebegin("namecall__UpdatePosition")
+			debug.profilebegin("__namecall._UpdatePosition")
 
 			debug.profilebegin("Get properties")
 			local Props = self._Properties
@@ -270,7 +272,7 @@ local DrawingElement do
 			return self._FullName
 		end
 		function GuiObject:Destroy()
-			debug.profilebegin("namecall_Destroy")
+			debug.profilebegin("__namecall.Destroy")
 			self._DrawingObject:Remove()
 
 			for _, Connection in next, self._Connections do
@@ -292,7 +294,7 @@ local DrawingElement do
 			debug.profileend()
 		end
 		function GuiObject:GetChildren()
-			debug.profilebegin("namecall_GetChildren")
+			debug.profilebegin("__namecall.GetChildren")
 			local Children = {}
 			for Child in next, self._Children do
 				table.insert(Children, Child)
@@ -301,7 +303,7 @@ local DrawingElement do
 			return Children, debug.profileend()
 		end
 		function GuiObject:GetDescendants()
-			debug.profilebegin("namecall_GetDescendants")
+			debug.profilebegin("__namecall.GetDescendants")
 			return RecursiveFlatten({}, 0, self._Children), debug.profileend()
 		end
 		function GuiObject:FindFirstChild(Name)
@@ -316,6 +318,35 @@ local DrawingElement do
 		end
 	end
 
+	-- A generalized Element creation pattern which each sub-class of DrawingElement uses.
+	local function CreateChildElement(ConstructorData, ClassPropertiesDraft)
+		local DrawingObject = Drawing.new(ClassPropertiesDraft.Class)
+		local ParentClass = GuiObject.new()
+
+		local Properties = setmetatable(DeepCopy(ClassPropertiesDraft), {
+			-- Properties inherited from parent GuiObject class
+			__index = ParentClass._Properties
+		})
+
+		local Data = {
+			_ParentClass = ParentClass,
+			_Properties = Properties,
+			_DrawingObject = DrawingObject,
+
+			_Children = {}, -- [Element] = true
+		}
+
+		-- Copy over data from inheriting class onto child class
+		for Key, Value in next, ParentClass do
+			if Key ~= "_Properties" then
+				Data[Key] = Value
+			end
+		end
+
+		local Object = setmetatable(Data, setmetatable(ConstructorData, ParentClass))
+		return Object
+	end
+
 	-- https://x.synapse.to/docs/reference/drawing_lib.html#square
 	local Square do
 		Square = {}
@@ -324,31 +355,7 @@ local DrawingElement do
 		DrawingElement.ClassProperties.Square = ClassPropertiesDraft
 
 		function Square.new()
-			local DrawingObject = Drawing.new("Square")
-			local ParentClass = GuiObject.new()
-
-			local Properties = setmetatable(DeepCopy(ClassPropertiesDraft), {
-				-- Properties inherited from parent GuiObject class
-				__index = ParentClass._Properties
-			})
-
-			local Data = {
-				_ParentClass = ParentClass,
-				_Properties = Properties,
-				_DrawingObject = DrawingObject,
-
-				_Children = {}, -- [Element] = true
-			}
-
-			-- Copy over data from inheriting class onto child class
-			for Key, Value in next, ParentClass do
-				if Key ~= "_Properties" then
-					Data[Key] = Value
-				end
-			end
-
-			local Object = setmetatable(Data, setmetatable(Square, ParentClass))
-			return Object
+			return CreateChildElement(Square, ClassPropertiesDraft)
 		end
 
 		function Square:__index(Key)
@@ -404,31 +411,7 @@ local DrawingElement do
 		DrawingElement.ClassProperties.Line = ClassPropertiesDraft
 
 		function Line.new()
-			local DrawingObject = Drawing.new("Line")
-			local ParentClass = GuiObject.new()
-
-			local Properties = setmetatable(DeepCopy(ClassPropertiesDraft), {
-				-- Properties inherited from parent GuiObject class
-				__index = ParentClass._Properties
-			})
-
-			local Data = {
-				_ParentClass = ParentClass,
-				_Properties = Properties,
-				_DrawingObject = DrawingObject,
-
-				_Children = {}, -- [Element] = true
-			}
-
-			-- Copy over data from inheriting class onto child class
-			for Key, Value in next, ParentClass do
-				if Key ~= "_Properties" then
-					Data[Key] = Value
-				end
-			end
-
-			local Object = setmetatable(Data, setmetatable(Line, ParentClass))
-			return Object
+			return CreateChildElement(Line, ClassPropertiesDraft)
 		end
 
 		function Line:__index(Key)
@@ -448,10 +431,10 @@ local DrawingElement do
 
 			AssertNewindex(self, Key, Value)
 
-			if Key == "From" then
-				self:_UpdatePosition(nil, Value)
-			elseif Key == "To" then
-				self:_UpdatePosition(nil, nil, Value)
+			if Key == "From" or Key == "To" then
+				self:_UpdatePosition(nil, {
+					[Key] = Value
+				})
 			else
 				GuiObject.__newindex(self, Key, Value)
 			end
@@ -460,10 +443,10 @@ local DrawingElement do
 		end
 
 		-- Called whenever `Line` changes parent or has its `From` or `To` properties updated
-		function Line:_UpdatePosition(ParentPosition, NewFrom, NewTo)
+		function Line:_UpdatePosition(ParentPosition, Arguments)
 			return GuiObject:_UpdatePosition(ParentPosition, "From", {
-				From = NewFrom or UNDEFINED,
-				To = NewTo or UNDEFINED,
+				From = Arguments.From or UNDEFINED,
+				To = Arguments.To or UNDEFINED,
 			})
 		end
 
@@ -479,31 +462,7 @@ local DrawingElement do
 		DrawingElement.ClassProperties.Text = ClassPropertiesDraft
 
 		function Text.new()
-			local DrawingObject = Drawing.new("Text")
-			local ParentClass = GuiObject.new()
-
-			local Properties = setmetatable(DeepCopy(ClassPropertiesDraft), {
-				-- Properties inherited from parent GuiObject class
-				__index = ParentClass._Properties
-			})
-
-			local Data = {
-				_ParentClass = ParentClass,
-				_Properties = Properties,
-				_DrawingObject = DrawingObject,
-
-				_Children = {}, -- [Element] = true
-			}
-
-			-- Copy over data from inheriting class onto child class
-			for Key, Value in next, ParentClass do
-				if Key ~= "_Properties" then
-					Data[Key] = Value
-				end
-			end
-
-			local Object = setmetatable(Data, setmetatable(Text, ParentClass))
-			return Object
+			return CreateChildElement(Text, ClassPropertiesDraft)
 		end
 
 		function Text:__index(Key)
@@ -557,35 +516,11 @@ local DrawingElement do
 		DrawingElement.ClassProperties.Triangle = ClassPropertiesDraft
 
 		function Triangle.new()
-			local DrawingObject = Drawing.new("Triangle")
-			local ParentClass = GuiObject.new()
-
-			local Properties = setmetatable(DeepCopy(ClassPropertiesDraft), {
-				-- Properties inherited from parent GuiObject class
-				__index = ParentClass._Properties
-			})
-
-			local Data = {
-				_ParentClass = ParentClass,
-				_Properties = Properties,
-				_DrawingObject = DrawingObject,
-
-				_Children = {}, -- [Element] = true
-			}
-
-			-- Copy over data from inheriting class onto child class
-			for Key, Value in next, ParentClass do
-				if Key ~= "_Properties" then
-					Data[Key] = Value
-				end
-			end
-
-			local Object = setmetatable(Data, setmetatable(Triangle, ParentClass))
-			return Object
+			return CreateChildElement(Triangle, ClassPropertiesDraft)
 		end
 
 		function Triangle:__index(Key)
-			debug.profilebegin("Triangle_index_" .. tostring(Key))
+			debug.profilebegin("Triangle.__index " .. tostring(Key))
 
 			AssertIndex(self, Key)
 
@@ -601,12 +536,11 @@ local DrawingElement do
 
 			AssertNewindex(self, Key, Value)
 
-			if Key == "PointA" then
+			if Key == "PointA" or Key == "PointB" or Key == "PointC" then
+				self:_UpdatePosition({
+					[Key] = Value
+				})
 				self:_UpdatePosition(nil, Value)
-			elseif Key == "PointB" or Key == "Position" then
-				self:_UpdatePosition(nil, nil, Value)
-			elseif Key == "PointC" then
-				self:_UpdatePosition(nil, nil, nil, Value)
 			elseif ClassPropertiesDraft[Key] then
 				self._Properties[Key] = Value
 				self._DrawingObject[Key] = Value
@@ -618,11 +552,11 @@ local DrawingElement do
 		end
 
 		-- Called whenever `Triangle` changes parent or has its `PointA`, `PointB` or `PointC` properties updated
-		function Triangle:_UpdatePosition(ParentPosition, NewA, NewB, NewC)
-			return GuiObject._UpdatePosition(self, ParentPosition, "PointA", {
-				PointA = NewA or UNDEFINED,
-				PointB = NewB or UNDEFINED,
-				PointC = NewC or UNDEFINED,
+		function Triangle:_UpdatePosition(ParentPosition, Arguments)
+			return GuiObject._UpdatePosition(self, ParentPosition, "PointB", {
+				PointA = Arguments.PointA or UNDEFINED,
+				PointB = Arguments.PointB or UNDEFINED,
+				PointC = Arguments.PointC or UNDEFINED,
 			})
 		end
 
