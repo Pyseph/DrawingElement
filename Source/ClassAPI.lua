@@ -162,7 +162,7 @@ local API = {
 			},
 			Font = {
 				Value = Drawing.Fonts.UI,
-				Types = {"0"},
+				Types = {"number"},
 			},
 			Size = {
 				Value = Vector2.zero,
