@@ -17,31 +17,31 @@ local ClassAPI = Environment.ClassAPI
 local function AssertIndex(self, Key)
 	local Class = self._Properties.Class
 	if ClassAPI.DoesPropertyExist(Class, Key) == false then
-		error(Error.UnknownProperty:format(tostring(Key), Class, self._FullName))
+		error(string.format(Error.UnknownProperty, tostring(Key), Class, self._FullName))
 	end
 end
 local function AssertNewindex(self, Key, Value)
 	if self._Destroyed then
-		error(Error.DestroyedSet:format(tostring(Key), tostring(self._Properties.Name)))
+		error(string.format(Error.DestroyedSet, tostring(Key), tostring(self._Properties.Name)))
 	end
 
 	local Class = self._Properties.Class
 	if ClassAPI.IsReadOnly(Class, Key) then
-		error(Error.ReadOnlySet:format(tostring(Key)))
+		error(string.format(Error.ReadOnlySet, tostring(Key)))
 	end
 
 	local ValidPropertyValue, ExpectedPropertyType = ClassAPI.IsValidPropertyType(Class, Key, Value)
 	if ValidPropertyValue == false then
 		if ExpectedPropertyType == nil then
-			error(Error.UnknownProperty:format(tostring(Key), Class, self._FullName))
+			error(string.format(Error.UnknownProperty, tostring(Key), Class, self._FullName))
 		else
-			error(Error.InvalidValue:format(tostring(Key), ExpectedPropertyType, typeof(Value)))
+			error(string.format(Error.InvalidValue, tostring(Key), ExpectedPropertyType, typeof(Value)))
 		end
 	end
 end
 
 local function DeepCopy(Value)
-	if type(Value) ~= "table" then
+	if typeof(Value) ~= "table" then
 		return Value
 	end
 
@@ -55,6 +55,11 @@ end
 
 local ElementGui = {}
 ElementGui.Name = "ElementGui"
+
+local ElementClasses = {}
+local function IsElementObject(Object)
+	return typeof(Object) == "table" and ElementClasses[Object.Class] == getrawmetatable(Object)
+end
 
 local DrawingElement do
 	DrawingElement = {
@@ -73,10 +78,6 @@ local DrawingElement do
 		return Flattened
 	end
 
-	local ElementClasses = {}
-	local function IsElementObject(Object)
-		return type(Object) == "table" and ElementClasses[Object.Class] == getrawmetatable(Object)
-	end
 
 	-- This is used to assign unique IDs to each object.
 	local Counter = 0
@@ -131,7 +132,7 @@ local DrawingElement do
 			debug.profileend()
 		end
 		function GuiObject:_SetParent(Key, Value)
-			assert(Value == nil or IsElementObject(Value), Error.InvalidSet:format(tostring(Key), "ElementObject", tostring(Value)))
+			assert(Value == nil or IsElementObject(Value), string.format(Error.InvalidSet, tostring(Key), "ElementObject", tostring(Value)))
 			debug.profilebegin("__namecall._SetParent " .. self.Class)
 
 			local DidUpdate = false
@@ -144,7 +145,7 @@ local DrawingElement do
 				local NewParent = Value
 				while NewParent ~= UNDEFINED do
 					if NewParent == self then
-						error(Error.CircularParentRef:format(self._FullName, Value._FullName))
+						error(string.format(Error.CircularParentRef, self._FullName, Value._FullName))
 						return nil, debug.profileend()
 					end
 
@@ -228,6 +229,8 @@ local DrawingElement do
 
 			local ParentAbsolutePosition = (ParentPosition or (Props.Parent ~= UNDEFINED and Props.Parent._Properties.AbsolutePosition) or Vector2.zero)
 			local DidMove = false
+			-- Calculate the new positions.
+			-- Some Elements have more than one position property such as triangles & lines, so a for-loop is necessary.
 			for PropName, PropValue in next, PositionProps do
 				local RelativePosition = PropValue ~= UNDEFINED and PropValue or Props[PropName]
 				RelativePositions[PropName] = RelativePosition
@@ -401,6 +404,7 @@ local DrawingElement do
 
 		setmetatable(Square, GuiObject)
 		ElementClasses.Square = Square
+		Square.__tostring = Square.GetFullName
 	end
 
 	-- https://x.synapse.to/docs/reference/drawing_lib.html#line
@@ -452,6 +456,7 @@ local DrawingElement do
 
 		setmetatable(Line, GuiObject)
 		ElementClasses.Line = Line
+		Line.__tostring = Line.GetFullName
 	end
 
 	-- https://x.synapse.to/docs/reference/drawing_lib.html#text
@@ -506,6 +511,7 @@ local DrawingElement do
 
 		setmetatable(Text, GuiObject)
 		ElementClasses.Text = Text
+		Text.__tostring = Text.GetFullName
 	end
 
 	-- https://x.synapse.to/docs/reference/drawing_lib.html#line
@@ -562,10 +568,11 @@ local DrawingElement do
 
 		setmetatable(Triangle, GuiObject)
 		ElementClasses.Triangle = Triangle
+		Triangle.__tostring = Triangle.GetFullName
 	end
 
 	function DrawingElement.new(Class)
-		assert(type(Class) == "string", "bad argument #1 to 'DrawingElement.new' (string expected, got " .. typeof(Class) .. ")")
+		assert(typeof(Class) == "string", "bad argument #1 to 'DrawingElement.new' (string expected, got " .. typeof(Class) .. ")")
 		assert(ElementClasses[Class] ~= nil, "Unable to create DrawingElement of type '" .. Class .. "'")
 
 		return ElementClasses[Class].new()
