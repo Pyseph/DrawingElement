@@ -9,6 +9,8 @@ local Error = {
 	InvalidValue = "Invalid value to property %s (%s expected, got %s)",
 	CircularParentRef = "Attempt to set parent of %s to %s would result in a circular reference",
 	UnknownProperty = "%s is not a valid member of %s \"%s\"",
+	UnknownClass = "Unable to create DrawingElement of type \"%s\"",
+	InvalidArgument = "Invalid argument #%d to '%s' (%s expected, got %s)",
 }
 
 local Signal = Environment.Signal
@@ -61,47 +63,48 @@ local function IsElementObject(Object)
 	return typeof(Object) == "table" and ElementClasses[Object.Class] == getrawmetatable(Object)
 end
 
+local function RecursiveFlatten(Flattened, Count, Children)
+	for Child in next, Children do
+		Count += 1
+		Flattened[Count] = Child
+
+		RecursiveFlatten(Flattened, Count, Child._Children)
+	end
+
+	return Flattened
+end
+
+local Counter = 0
+local function GenerateDebugId()
+	Counter += 1
+	return Counter
+end
+
 local DrawingElement do
-	DrawingElement = {
-		ClassProperties = {}
-	}
-
-	-- Flattens nested tables into flat ones. Used for :GetDescendants()
-	local function RecursiveFlatten(Flattened, Count, Children)
-		for Child in next, Children do
-			Count += 1
-			Flattened[Count] = Child
-
-			RecursiveFlatten(Flattened, Count, Child._Children)
-		end
-
-		return Flattened
-	end
-
-
-	-- This is used to assign unique IDs to each object.
-	local Counter = 0
-	local function IncrementCounter()
-		Counter += 1
-		return Counter
-	end
+	DrawingElement = {}
 
 	-- GuiObject is an abstract class inherited by all DrawingElement objects.
+	-- It is not creatable outside of this script.
 	local GuiObject do
 		GuiObject = {}
 		GuiObject.__index = GuiObject
 
 		local ClassPropertiesDraft = ClassAPI.GetDefaultProperties("GuiObject")
-		DrawingElement.ClassProperties.GuiObject = ClassPropertiesDraft
+		local ClassEventsDraft = ClassAPI.GetEvents("GuiObject")
+
+		local ClassEvents = {}
+		for _, EventName in ipairs(ClassEventsDraft) do
+			ClassEvents[EventName] = Signal.new()
+		end
 
 		function GuiObject.new()
 			local Object = setmetatable({
 				_Connections = {},
-				_DebugId = IncrementCounter(),
+				_DebugId = GenerateDebugId(),
 				_Destroyed = false,
-				_FullName = "GuiObject",
 
-				_Properties = DeepCopy(ClassPropertiesDraft)
+				_Properties = DeepCopy(ClassPropertiesDraft),
+				_Events = ClassEvents,
 			}, GuiObject)
 
 			return Object
@@ -319,27 +322,39 @@ local DrawingElement do
 		function GuiObject:GetDebugId()
 			return self._DebugId
 		end
+
+		GuiObject.__tostring = GuiObject.GetFullName
+		ElementClasses.GuiObject = GuiObject
 	end
 
-	-- A generalized Element creation pattern which each sub-class of DrawingElement uses.
-	local function CreateChildElement(ConstructorData, ClassPropertiesDraft)
-		local DrawingObject = Drawing.new(ClassPropertiesDraft.Class)
-		local ParentClass = GuiObject.new()
+	-- A generalized class-creation function which each child class of the parent `GuiObject` class uses.
+	local function CreateChildElement(ConstructorData, ClassName)
+		local ClassPropertiesDraft = ClassAPI.GetDefaultProperties(ClassName)
+		local ClassEventsDraft = ClassAPI.GetEvents(ClassPropertiesDraft.Class)
+
+		local DrawingObject = Drawing.new(ClassName)
+		local ParentClass = DrawingElement[ClassPropertiesDraft.ParentClass].new()
 
 		local Properties = setmetatable(DeepCopy(ClassPropertiesDraft), {
 			-- Properties inherited from parent GuiObject class
 			__index = ParentClass._Properties
 		})
 
+		local ClassEvents = {}
+		for _, EventName in ipairs(ClassEventsDraft) do
+			ClassEvents[EventName] = Signal.new()
+		end
+
 		local Data = {
 			_ParentClass = ParentClass,
 			_Properties = Properties,
 			_DrawingObject = DrawingObject,
+			_FullName = ClassPropertiesDraft.Class,
 
 			_Children = {}, -- [Element] = true
 		}
 
-		-- Copy over data from inheriting class onto child class
+		-- Copy over data from parent class onto child class
 		for Key, Value in next, ParentClass do
 			if Key ~= "_Properties" then
 				Data[Key] = Value
@@ -354,11 +369,8 @@ local DrawingElement do
 	local Square do
 		Square = {}
 
-		local ClassPropertiesDraft = ClassAPI.GetDefaultProperties("Square")
-		DrawingElement.ClassProperties.Square = ClassPropertiesDraft
-
 		function Square.new()
-			return CreateChildElement(Square, ClassPropertiesDraft)
+			return CreateChildElement(Square, "Square")
 		end
 
 		function Square:__index(Key)
@@ -383,6 +395,7 @@ local DrawingElement do
 			if Key == "Position" then
 				self:_UpdatePosition(nil, Value)
 			elseif Key == "Size" then
+				self._Properties.Bounds = Value
 				self._Properties.Size = Value
 				self._DrawingObject.Size = Value
 			elseif Key == "Filled" then
@@ -404,18 +417,14 @@ local DrawingElement do
 
 		setmetatable(Square, GuiObject)
 		ElementClasses.Square = Square
-		Square.__tostring = Square.GetFullName
 	end
 
 	-- https://x.synapse.to/docs/reference/drawing_lib.html#line
 	local Line do
 		Line = {}
 
-		local ClassPropertiesDraft = ClassAPI.GetDefaultProperties("Line")
-		DrawingElement.ClassProperties.Line = ClassPropertiesDraft
-
 		function Line.new()
-			return CreateChildElement(Line, ClassPropertiesDraft)
+			return CreateChildElement(Line, "Line")
 		end
 
 		function Line:__index(Key)
@@ -456,18 +465,14 @@ local DrawingElement do
 
 		setmetatable(Line, GuiObject)
 		ElementClasses.Line = Line
-		Line.__tostring = Line.GetFullName
 	end
 
 	-- https://x.synapse.to/docs/reference/drawing_lib.html#text
 	local Text do
 		Text = {}
 
-		local ClassPropertiesDraft = ClassAPI.GetDefaultProperties("Text")
-		DrawingElement.ClassProperties.Text = ClassPropertiesDraft
-
 		function Text.new()
-			return CreateChildElement(Text, ClassPropertiesDraft)
+			return CreateChildElement(Text, "Text")
 		end
 
 		function Text:__index(Key)
@@ -494,6 +499,8 @@ local DrawingElement do
 			elseif Key == "Text" then
 				self._Properties.Text = Value
 				self._DrawingObject.Text = Value
+
+				self._Properties.Bounds = self._DrawingObject.TextBounds
 				self._Properties.TextBounds = self._DrawingObject.TextBounds
 			else
 				GuiObject.__newindex(self, Key, Value)
@@ -511,18 +518,14 @@ local DrawingElement do
 
 		setmetatable(Text, GuiObject)
 		ElementClasses.Text = Text
-		Text.__tostring = Text.GetFullName
 	end
 
-	-- https://x.synapse.to/docs/reference/drawing_lib.html#line
+	-- https://x.synapse.to/docs/reference/drawing_lib.html#triangle
 	local Triangle do
 		Triangle = {}
 
-		local ClassPropertiesDraft = ClassAPI.GetDefaultProperties("Triangle")
-		DrawingElement.ClassProperties.Triangle = ClassPropertiesDraft
-
 		function Triangle.new()
-			return CreateChildElement(Triangle, ClassPropertiesDraft)
+			return CreateChildElement(Triangle, "Triangle")
 		end
 
 		function Triangle:__index(Key)
@@ -547,7 +550,7 @@ local DrawingElement do
 					[Key] = Value
 				})
 				self:_UpdatePosition(nil, Value)
-			elseif ClassPropertiesDraft[Key] then
+			elseif ClassAPI.IsValidProperty(self._Properties.Class, Key) then
 				self._Properties[Key] = Value
 				self._DrawingObject[Key] = Value
 			else
@@ -568,19 +571,14 @@ local DrawingElement do
 
 		setmetatable(Triangle, GuiObject)
 		ElementClasses.Triangle = Triangle
-		Triangle.__tostring = Triangle.GetFullName
 	end
 
 	function DrawingElement.new(Class)
-		assert(typeof(Class) == "string", "bad argument #1 to 'DrawingElement.new' (string expected, got " .. typeof(Class) .. ")")
-		assert(ElementClasses[Class] ~= nil, "Unable to create DrawingElement of type '" .. Class .. "'")
+		assert(typeof(Class) == "string", string.format(Error.InvalidArgument, "1", "DrawingElement.new", "string", typeof(Class)))
+		assert(ElementClasses[Class] ~= nil and ClassAPI.IsCreatable(Class), string.format(Error.UnknownClass, Class))
 
 		return ElementClasses[Class].new()
 	end
-
-	DrawingElement.ClassProperties = setmetatable(DrawingElement.ClassProperties, {
-		__index = DrawingElement.ClassProperties.GuiObject
-	})
 end
 
 return DrawingElement

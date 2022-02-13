@@ -1,8 +1,10 @@
 local Module = {}
+
 local UNDEFINED = "%%UNDEFINED%%"
 
 local API = {
 	GuiObject = {
+		NotCreatable = true,
 		Properties = {
 			Class = {
 				Value = "GuiObject",
@@ -46,12 +48,15 @@ local API = {
 				Types = {"Vector2"},
 				ReadOnly = true,
 			},
-		},
-		Methods = {
-
+			Bounds = {
+				Value = Vector2.zero,
+				Types = {"Vector2"},
+				ReadOnly = true,
+			}
 		},
 		Events = {
-
+			"PropertyChanged",
+			"AncestryChanged",
 		},
 	},
 
@@ -72,9 +77,10 @@ local API = {
 				Value = false,
 				Types = {"boolean"},
 			},
-		},
-		Methods = {
-
+			Size = {
+				Value = Vector2.new(16, 16),
+				Types = {"Vector2"}
+			}
 		},
 		Events = {
 
@@ -117,9 +123,6 @@ local API = {
 				Types = {"Vector2"},
 				ReadOnly = true,
 			},
-		},
-		Methods = {
-
 		},
 		Events = {
 
@@ -169,9 +172,6 @@ local API = {
 				Types = {"Vector2"},
 			},
 		},
-		Methods = {
-
-		},
 		Events = {
 
 		},
@@ -217,9 +217,6 @@ local API = {
 				Value = false,
 				Types = {"boolean"},
 			},
-		},
-		Methods = {
-
 		},
 		Events = {
 
@@ -276,5 +273,14 @@ function Module.GetDefaultProperties(Class)
 
 	return DefaultProperties
 end
+function Module.GetEvents(Class)
+	return API[Class].Events
+end
+function Module.IsCreatable(Class)
+	return API[Class].IsCreatable
+end
+function Module.IsValidProperty(Class, PropertyName)
+	return API[Class].Properties[PropertyName] ~= nil
+end
 
-return Module, UNDEFINED
+return Module
